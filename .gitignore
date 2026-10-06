@@ -1,0 +1,6 @@
+/target
+/result
+.direnv/
+.envrc.cache
+Cargo.build-spec.json
+crate-hashes.json
