@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde_json::json;
 
 use crate::alert::Alert;
-use crate::config::{Config, NtfyConfig};
+use crate::config::{Config, NtfyConfig, Render};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpRequest {
@@ -91,6 +91,7 @@ fn read_secret(path: &Path) -> Result<String, SinkError> {
 pub struct Discord {
     pub webhook_url_file: PathBuf,
     pub mention: String,
+    pub render: Render,
 }
 
 impl Sink for Discord {
@@ -106,7 +107,12 @@ impl Sink for Discord {
                 "an https webhook URL",
             ));
         }
-        let mut content = format!("**{}** — {}", alert.headline(), alert.line());
+        let r = &self.render;
+        let mut content = if alert.context.is_some() {
+            format!("**{}**\n{}", alert.title(r), alert.body(r))
+        } else {
+            format!("**{}** — {}", alert.headline(r), alert.line(r))
+        };
         if !self.mention.is_empty() {
             content = format!("{} {content}", self.mention);
         }
@@ -121,6 +127,7 @@ impl Sink for Discord {
 
 pub struct Ntfy {
     pub config: NtfyConfig,
+    pub render: Render,
 }
 
 const TOPIC_MAX: usize = 64;
@@ -155,24 +162,28 @@ impl Sink for Ntfy {
             .titles
             .get(&alert.event)
             .cloned()
-            .unwrap_or_else(|| alert.headline());
+            .unwrap_or_else(|| alert.title(&self.render));
         let tags = self
             .config
             .tags
             .get(&alert.event)
             .cloned()
             .unwrap_or_default();
+        let mut body = json!({
+            "topic": topic,
+            "title": title,
+            "message": alert.body(&self.render),
+            "markdown": self.render.markdown,
+            "priority": self.config.priority(&alert.event).get(),
+            "tags": tags,
+        });
+        if let Some(click) = &self.config.click {
+            body["click"] = json!(click);
+        }
         Ok(HttpRequest {
             url: format!("{server}/"),
             content_type: "application/json",
-            body: json!({
-                "topic": topic,
-                "title": title,
-                "message": alert.line(),
-                "priority": self.config.priority(&alert.event).get(),
-                "tags": tags,
-            })
-            .to_string(),
+            body: body.to_string(),
         })
     }
 }
@@ -186,11 +197,13 @@ pub fn sinks(config: &Config) -> Vec<Box<dyn Sink>> {
         out.push(Box::new(Discord {
             webhook_url_file: path.clone(),
             mention: config.mention.clone(),
+            render: config.render.clone(),
         }));
     }
     if let Some(ntfy) = &config.ntfy {
         out.push(Box::new(Ntfy {
             config: ntfy.clone(),
+            render: config.render.clone(),
         }));
     }
     out
@@ -243,6 +256,7 @@ mod tests {
             event: event.into(),
             host: "ryn".into(),
             session: "abcd1234".into(),
+            context: None,
         }
     }
 
@@ -260,7 +274,9 @@ mod tests {
                 priorities: BTreeMap::from([("Stop".into(), 5), ("Notification".into(), 4)]),
                 tags: BTreeMap::from([("Stop".into(), vec!["white_check_mark".into()])]),
                 titles: BTreeMap::new(),
+                click: None,
             },
+            render: Render::default(),
         }
     }
 
@@ -314,6 +330,7 @@ mod tests {
         let sink = Discord {
             webhook_url_file: secret(&dir, "hook", "https://discord.com/api/webhooks/1/x\n"),
             mention: "<@42>".into(),
+            render: Render::default(),
         };
         let req = sink.request(&alert("Notification")).unwrap();
         assert_eq!(req.url, "https://discord.com/api/webhooks/1/x");
