@@ -155,3 +155,22 @@ fn check_reports_readiness_without_printing_the_topic() {
         .failure()
         .stdout(predicate::str::contains("is missing"));
 }
+
+#[test]
+fn send_delivers_a_composed_message_and_refuses_a_bad_one() {
+    let (url, rx) = mock_server(1);
+    let dir = setup(&url, r#"{}"#);
+    noroshi(&dir, &["send"])
+        .write_stdin(r#"{"title":"plantao: rio sui failed","message":"origin down","priority":5,"tags":["rotating_light"],"click":"https://rio.example/x"}"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("unit-test-topic").not());
+    let got = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+    assert_eq!(got.body["title"], "plantao: rio sui failed");
+    assert_eq!(got.body["priority"], 5);
+    assert_eq!(got.body["click"], "https://rio.example/x");
+    noroshi(&dir, &["send"])
+        .write_stdin(r#"{"title":"x","message":"y","priority":0}"#)
+        .assert()
+        .failure();
+}

@@ -4,7 +4,32 @@ use std::time::Duration;
 use serde_json::json;
 
 use crate::alert::Alert;
-use crate::config::{Config, NtfyConfig, Render};
+use crate::config::{Config, NtfyConfig, Priority, Render};
+
+/// A message another program composed: a health reporter's transition or
+/// digest. Delivered through the same sinks and the same secret handling as
+/// an agent alert, so the topic is still read only here and never echoed.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+pub struct Message {
+    pub title: String,
+    pub message: String,
+    #[serde(default = "default_priority", deserialize_with = "priority_field")]
+    pub priority: Priority,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub click: Option<String>,
+}
+
+fn default_priority() -> Priority {
+    Priority::DEFAULT
+}
+
+fn priority_field<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Priority, D::Error> {
+    let v = <i64 as serde::Deserialize>::deserialize(d)?;
+    Priority::try_from(v)
+        .map_err(|v| serde::de::Error::custom(format!("priority {v} is outside 1..=5")))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpRequest {
@@ -74,6 +99,11 @@ pub trait Sink {
     ///
     /// Returns why this sink cannot deliver right now.
     fn request(&self, alert: &Alert) -> Result<HttpRequest, SinkError>;
+
+    /// # Errors
+    ///
+    /// Returns why this sink cannot deliver right now.
+    fn message_request(&self, message: &Message) -> Result<HttpRequest, SinkError>;
 }
 
 fn read_secret(path: &Path) -> Result<String, SinkError> {
@@ -100,13 +130,7 @@ impl Sink for Discord {
     }
 
     fn request(&self, alert: &Alert) -> Result<HttpRequest, SinkError> {
-        let url = read_secret(&self.webhook_url_file)?;
-        if !url.starts_with("https://") {
-            return Err(SinkError::Malformed(
-                self.webhook_url_file.clone(),
-                "an https webhook URL",
-            ));
-        }
+        let url = self.webhook_url()?;
         let r = &self.render;
         let mut content = if alert.context.is_some() {
             format!("**{}**\n{}", alert.title(r), alert.body(r))
@@ -122,6 +146,33 @@ impl Sink for Discord {
             body: json!({ "content": content, "allowed_mentions": { "parse": ["users"] } })
                 .to_string(),
         })
+    }
+
+    fn message_request(&self, message: &Message) -> Result<HttpRequest, SinkError> {
+        let url = self.webhook_url()?;
+        let mut content = format!("**{}**\n{}", message.title, message.message);
+        if let Some(click) = &message.click {
+            content = format!("{content}\n{click}");
+        }
+        Ok(HttpRequest {
+            url,
+            content_type: "application/json",
+            body: json!({ "content": content, "allowed_mentions": { "parse": [] } }).to_string(),
+        })
+    }
+}
+
+impl Discord {
+    fn webhook_url(&self) -> Result<String, SinkError> {
+        let url = read_secret(&self.webhook_url_file)?;
+        if url.starts_with("https://") {
+            Ok(url)
+        } else {
+            Err(SinkError::Malformed(
+                self.webhook_url_file.clone(),
+                "an https webhook URL",
+            ))
+        }
     }
 }
 
@@ -146,17 +197,6 @@ impl Sink for Ntfy {
     }
 
     fn request(&self, alert: &Alert) -> Result<HttpRequest, SinkError> {
-        let server = self.config.server.trim_end_matches('/');
-        if !(server.starts_with("https://") || server.starts_with("http://")) {
-            return Err(SinkError::BadServer(server.to_string()));
-        }
-        let topic = read_secret(&self.config.topic_file)?;
-        if !valid_topic(&topic) {
-            return Err(SinkError::Malformed(
-                self.config.topic_file.clone(),
-                "an ntfy topic (1-64 of A-Z a-z 0-9 - _)",
-            ));
-        }
         let title = self
             .config
             .titles
@@ -169,15 +209,42 @@ impl Sink for Ntfy {
             .get(&alert.event)
             .cloned()
             .unwrap_or_default();
+        self.post(&Message {
+            title,
+            message: alert.body(&self.render),
+            priority: self.config.priority(&alert.event),
+            tags,
+            click: self.config.click.clone(),
+        })
+    }
+
+    fn message_request(&self, message: &Message) -> Result<HttpRequest, SinkError> {
+        self.post(message)
+    }
+}
+
+impl Ntfy {
+    fn post(&self, m: &Message) -> Result<HttpRequest, SinkError> {
+        let server = self.config.server.trim_end_matches('/');
+        if !(server.starts_with("https://") || server.starts_with("http://")) {
+            return Err(SinkError::BadServer(server.to_string()));
+        }
+        let topic = read_secret(&self.config.topic_file)?;
+        if !valid_topic(&topic) {
+            return Err(SinkError::Malformed(
+                self.config.topic_file.clone(),
+                "an ntfy topic (1-64 of A-Z a-z 0-9 - _)",
+            ));
+        }
         let mut body = json!({
             "topic": topic,
-            "title": title,
-            "message": alert.body(&self.render),
+            "title": m.title,
+            "message": m.message,
             "markdown": self.render.markdown,
-            "priority": self.config.priority(&alert.event).get(),
-            "tags": tags,
+            "priority": m.priority.get(),
+            "tags": m.tags,
         });
-        if let Some(click) = &self.config.click {
+        if let Some(click) = &m.click {
             body["click"] = json!(click);
         }
         Ok(HttpRequest {
@@ -218,6 +285,23 @@ pub fn deliver(
     transport: &dyn Transport,
 ) -> Result<u16, SinkError> {
     let request = sink.request(alert)?;
+    let status = transport.send(&request).map_err(SinkError::Transport)?;
+    if (200..300).contains(&status) {
+        Ok(status)
+    } else {
+        Err(SinkError::Status(status))
+    }
+}
+
+/// # Errors
+///
+/// Returns why the sink did not deliver the message.
+pub fn deliver_message(
+    sink: &dyn Sink,
+    message: &Message,
+    transport: &dyn Transport,
+) -> Result<u16, SinkError> {
+    let request = sink.message_request(message)?;
     let status = transport.send(&request).map_err(SinkError::Transport)?;
     if (200..300).contains(&status) {
         Ok(status)
@@ -362,6 +446,28 @@ mod tests {
         assert!(matches!(results[0], Err(SinkError::Missing(_))));
         assert_eq!(results[1], Ok(200));
         assert_eq!(t.sent.borrow().len(), 1);
+    }
+
+    #[test]
+    fn a_message_carries_its_own_title_priority_tags_and_click() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = ntfy(secret(&dir, "topic", "t0p1c"));
+        let m: Message = serde_json::from_str(
+            r#"{"title":"rio sui: failed","message":"origin down","priority":5,"tags":["rotating_light"],"click":"https://e.example/x"}"#,
+        )
+        .unwrap();
+        let req = sink.message_request(&m).unwrap();
+        assert!(!req.url.contains("t0p1c"));
+        let body: serde_json::Value = serde_json::from_str(&req.body).unwrap();
+        assert_eq!(body["title"], "rio sui: failed");
+        assert_eq!(body["priority"], 5);
+        assert_eq!(body["tags"], serde_json::json!(["rotating_light"]));
+        assert_eq!(body["click"], "https://e.example/x");
+        assert!(
+            serde_json::from_str::<Message>(r#"{"title":"a","message":"b","priority":9}"#).is_err()
+        );
+        let d: Message = serde_json::from_str(r#"{"title":"a","message":"b"}"#).unwrap();
+        assert_eq!(d.priority, Priority::DEFAULT);
     }
 
     #[test]

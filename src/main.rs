@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 
 use noroshi::alert::{Alert, Context, Detail, session_label};
 use noroshi::config::{Config, Policy};
-use noroshi::sink::{self, Ureq};
+use noroshi::sink::{self, Message, Ureq};
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -27,6 +27,10 @@ enum Command {
     Hook,
     /// Report the merged config layers and whether each backend can deliver, without sending anything.
     Check,
+    /// Deliver one message composed by another program, read as JSON on stdin:
+    /// {"title", "message", "priority" 1..=5, "tags": [...], "click"}. Exits 0
+    /// when at least one backend accepted it.
+    Send,
     /// Send one test alert through every configured backend.
     Test {
         /// Event whose priority, tags and title the test uses.
@@ -44,6 +48,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Command::Check => check(explicit),
+        Command::Send => send(explicit),
         Command::Test { event } => test(explicit, &event),
     }
 }
@@ -179,6 +184,50 @@ fn test(explicit: Option<&Path>, event: &str) -> ExitCode {
                 println!("backend {}: sent (HTTP {status})", s.name());
             }
             Err(e) => println!("backend {}: {e}", s.name()),
+        }
+    }
+    if delivered == 0 {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn send(explicit: Option<&Path>) -> ExitCode {
+    let mut raw = String::new();
+    if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
+        eprintln!("noroshi: stdin: {e}");
+        return ExitCode::FAILURE;
+    }
+    let message: Message = match serde_json::from_str(&raw) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("noroshi: the message is not {{title, message, priority, tags, click}}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let cwd = std::env::current_dir().ok();
+    let config = match Config::load(explicit, cwd.as_deref()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("noroshi: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let sinks = sink::sinks(&config);
+    if sinks.is_empty() {
+        eprintln!("noroshi: no backend configured");
+        return ExitCode::FAILURE;
+    }
+    let transport = Ureq::new(TIMEOUT);
+    let mut delivered = 0;
+    for s in &sinks {
+        match sink::deliver_message(s.as_ref(), &message, &transport) {
+            Ok(status) => {
+                delivered += 1;
+                println!("backend {}: sent (HTTP {status})", s.name());
+            }
+            Err(e) => eprintln!("noroshi: {}: {e}", s.name()),
         }
     }
     if delivered == 0 {

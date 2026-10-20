@@ -7,7 +7,7 @@ by per-event policy, deliver to each configured backend. Rust, `substrate.rust.t
 |--------|----------------|
 | `config` | `noroshi.yaml`; per-entry resolution of policies and ntfy priorities (`Priority` is 1..=5) |
 | `alert` | `Alert` from a payload: host, event, 8-char session label, nothing else |
-| `sink` | `Sink` (Discord, Ntfy) builds an `HttpRequest`; `Transport` sends it (`Ureq` in production, a recorder in tests) |
+| `sink` | `Sink` (Discord, Ntfy) builds an `HttpRequest` from an `Alert` or a composed `Message` (`noroshi send`, JSON on stdin; plantao delivers through it); `Transport` sends it (`Ureq` in production, a recorder in tests) |
 
 Rules:
 
