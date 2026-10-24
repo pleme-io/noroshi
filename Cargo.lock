@@ -376,9 +376,9 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b981d6e23ae392923db98dc5a96fd8f42a3a44c6ce4c7681461a6f0881ed59c0"
+checksum = "45aa54e78709c6e9644351c49be01154ea4e2ec8f52197e06312d594b3fc9b7b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -387,9 +387,9 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ce1c250a8f7e6e026d731fdeee7ae0fdb7d882f899a076b8c1558eef6ddce3"
+checksum = "1bbe0fc580d799cdec0d3e87f0b70eac8958aaf5d5f2051652512aca3ea2c07b"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -401,9 +401,9 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25c13fba2c9360c684e7f068deddba4ae436111441285d7b54e0facb3ebe3bc5"
+checksum = "a36de42423d45a3a53484df348c00d9691603252d6630dd3f980e01d560da7eb"
 dependencies = [
  "blake3",
  "chrono",

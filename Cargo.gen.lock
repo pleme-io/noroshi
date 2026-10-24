@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "0097458b505bb2dae92eb459c27cddf41759b56fb3e0ea9a4cc1c4d00fe860b7",
+  "cargo_lock_sha256": "44b9bab48de20497db2862262e5240570736a3aa99d712e96f08edbfb8d2d54e",
   "manifest_sha256": {
     "Cargo.toml": "0fac3d6cee095e4f7e24edb3a756302976b2f42b67194c502e23b12e6fe21b86"
   },
@@ -722,7 +722,7 @@
           "ratio"
         ]
       },
-      "gen-macros-0.1.51": {
+      "gen-macros-0.1.52": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -761,11 +761,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-platform-0.1.51": {
+      "gen-platform-0.1.52": {
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.51",
+            "package_key": "gen-macros-0.1.52",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -775,7 +775,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.51",
+            "package_key": "gen-types-0.1.52",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -829,7 +829,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.51": {
+      "gen-types-0.1.52": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -2180,7 +2180,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.51",
+            "package_key": "gen-platform-0.1.52",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2190,7 +2190,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.51",
+            "package_key": "gen-types-0.1.52",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5426,14 +5426,14 @@
     "fsevent-sys-4.1.0": {
       "edition": "2018"
     },
-    "gen-macros-0.1.51": {
+    "gen-macros-0.1.52": {
       "edition": "2024",
       "proc_macro": true
     },
-    "gen-platform-0.1.51": {
+    "gen-platform-0.1.52": {
       "edition": "2024"
     },
-    "gen-types-0.1.51": {
+    "gen-types-0.1.52": {
       "edition": "2024"
     },
     "getrandom-0.2.17": {
