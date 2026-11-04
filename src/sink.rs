@@ -2,9 +2,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_json::json;
+use ureq::http::Uri;
+use ureq::http::uri::Authority;
 
 use crate::alert::Alert;
-use crate::config::{Config, NtfyConfig, Priority, Render};
+use crate::config::{Config, DISCORD_HOSTS, NtfyConfig, Priority, Render};
+
+const DISCORD_WEBHOOK_PATH: &str = "/api/webhooks/";
 
 /// A message another program composed: a health reporter's transition or
 /// digest. Delivered through the same sinks and the same secret handling as
@@ -49,6 +53,8 @@ pub enum SinkError {
     Empty(PathBuf),
     #[error("secret file {0} does not hold {1}")]
     Malformed(PathBuf, &'static str),
+    #[error("secret file {0} names a webhook that webhook_hosts does not allow")]
+    HostRefused(PathBuf),
     #[error("{0} is not an http(s) URL")]
     BadServer(String),
     #[error("delivery failed: {0}")]
@@ -121,6 +127,7 @@ fn read_secret(path: &Path) -> Result<String, SinkError> {
 pub struct Discord {
     pub webhook_url_file: PathBuf,
     pub mention: String,
+    pub hosts: Vec<String>,
     pub render: Render,
 }
 
@@ -165,15 +172,29 @@ impl Sink for Discord {
 impl Discord {
     fn webhook_url(&self) -> Result<String, SinkError> {
         let url = read_secret(&self.webhook_url_file)?;
-        if url.starts_with("https://") {
+        let uri = url
+            .parse::<Uri>()
+            .ok()
+            .filter(|u| u.scheme_str() == Some("https"))
+            .ok_or_else(|| {
+                SinkError::Malformed(self.webhook_url_file.clone(), "an https webhook URL")
+            })?;
+        if webhook_allowed(&uri, &self.hosts) {
             Ok(url)
         } else {
-            Err(SinkError::Malformed(
-                self.webhook_url_file.clone(),
-                "an https webhook URL",
-            ))
+            Err(SinkError::HostRefused(self.webhook_url_file.clone()))
         }
     }
+}
+
+fn webhook_allowed(uri: &Uri, hosts: &[String]) -> bool {
+    let Some(authority) = uri.authority().map(Authority::as_str) else {
+        return false;
+    };
+    let same = |h: &str| h.eq_ignore_ascii_case(authority);
+    !authority.contains('@')
+        && hosts.iter().any(|h| same(h))
+        && (!DISCORD_HOSTS.iter().any(|h| same(h)) || uri.path().starts_with(DISCORD_WEBHOOK_PATH))
 }
 
 pub struct Ntfy {
@@ -264,6 +285,7 @@ pub fn sinks(config: &Config) -> Vec<Box<dyn Sink>> {
         out.push(Box::new(Discord {
             webhook_url_file: path.clone(),
             mention: config.mention.clone(),
+            hosts: config.webhook_hosts.clone(),
             render: config.render.clone(),
         }));
     }
@@ -414,6 +436,7 @@ mod tests {
         let sink = Discord {
             webhook_url_file: secret(&dir, "hook", "https://discord.com/api/webhooks/1/x\n"),
             mention: "<@42>".into(),
+            hosts: DISCORD_HOSTS.map(String::from).to_vec(),
             render: Render::default(),
         };
         let req = sink.request(&alert("Notification")).unwrap();
@@ -423,6 +446,126 @@ mod tests {
             body["content"],
             "<@42> **Claude is waiting on you** — ryn · Notification · session abcd1234"
         );
+    }
+
+    fn discord(dir: &tempfile::TempDir, url: &str, hosts: &[&str]) -> Discord {
+        Discord {
+            webhook_url_file: secret(dir, "hook", url),
+            mention: String::new(),
+            hosts: hosts.iter().map(ToString::to_string).collect(),
+            render: Render::default(),
+        }
+    }
+
+    fn composed() -> Message {
+        Message {
+            title: "t".into(),
+            message: "m".into(),
+            priority: Priority::DEFAULT,
+            tags: Vec::new(),
+            click: None,
+        }
+    }
+
+    #[test]
+    fn only_a_discord_webhook_passes_by_default_and_nothing_else_is_sent_or_echoed() {
+        let dir = tempfile::tempdir().unwrap();
+        for url in [
+            "https://evil.example/collect-zq7xv",
+            "https://discord.com.evil.example/api/webhooks/1/zq7xv",
+            "https://evil.example/https://discord.com/api/webhooks/1/zq7xv",
+            "https://discord.com@evil.example/api/webhooks/1/zq7xv",
+            "https://user:zq7xv@discord.com/api/webhooks/1/x",
+            "https://discord.com:8443/api/webhooks/1/zq7xv",
+            "https://discord.com/not/a/webhook/zq7xv",
+            "https://discord.community/api/webhooks/1/zq7xv",
+        ] {
+            let sink = discord(&dir, url, &DISCORD_HOSTS);
+            let t = recording(200);
+            let err = deliver(&sink, &alert("Stop"), &t).unwrap_err();
+            assert!(matches!(err, SinkError::HostRefused(_)), "{url}: {err:?}");
+            assert!(!err.to_string().contains("zq7xv"), "{url}");
+            assert!(!err.to_string().contains("evil"), "{url}");
+            assert_eq!(
+                deliver_message(&sink, &composed(), &t).unwrap_err(),
+                err,
+                "{url}"
+            );
+            assert!(t.sent.borrow().is_empty(), "{url}");
+        }
+        for url in [
+            "http://discord.com/api/webhooks/1/zq7xv",
+            "https://evil.example\\@discord.com/api/webhooks/1/zq7xv",
+            "not a url zq7xv",
+        ] {
+            let sink = discord(&dir, url, &DISCORD_HOSTS);
+            let t = recording(200);
+            let err = deliver(&sink, &alert("Stop"), &t).unwrap_err();
+            assert!(matches!(err, SinkError::Malformed(..)), "{url}: {err:?}");
+            assert!(!err.to_string().contains("zq7xv"), "{url}");
+            assert!(t.sent.borrow().is_empty(), "{url}");
+        }
+    }
+
+    #[test]
+    fn a_discord_webhook_is_delivered_on_either_domain_in_any_case() {
+        let dir = tempfile::tempdir().unwrap();
+        for url in [
+            "https://discord.com/api/webhooks/1/x",
+            "https://discordapp.com/api/webhooks/1/x?wait=true",
+            "https://DISCORD.com/api/webhooks/1/x",
+        ] {
+            let sink = discord(&dir, url, &DISCORD_HOSTS);
+            let t = recording(204);
+            assert_eq!(deliver(&sink, &alert("Stop"), &t), Ok(204), "{url}");
+            assert_eq!(t.sent.borrow()[0].url, url);
+        }
+    }
+
+    #[test]
+    fn an_allowed_host_is_matched_whole_with_its_port() {
+        let dir = tempfile::tempdir().unwrap();
+        let hosts = ["hooks.example", "chat.example:8443"];
+        for url in [
+            "https://hooks.example/any/path",
+            "https://chat.example:8443/x",
+        ] {
+            assert!(discord(&dir, url, &hosts).webhook_url().is_ok(), "{url}");
+        }
+        for url in [
+            "https://hooks.example:8443/x",
+            "https://chat.example/x",
+            "https://sub.hooks.example/x",
+            "https://discord.com/api/webhooks/1/x",
+        ] {
+            assert!(
+                matches!(
+                    discord(&dir, url, &hosts).webhook_url(),
+                    Err(SinkError::HostRefused(_))
+                ),
+                "{url}"
+            );
+        }
+        assert!(
+            discord(&dir, "https://discord.com/api/webhooks/1/x", &[])
+                .webhook_url()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn sinks_hand_the_configured_hosts_to_discord() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            webhook_url_file: Some(secret(&dir, "hook", "https://hooks.example/x")),
+            ..Config::default()
+        };
+        assert!(sinks(&config)[0].request(&alert("Stop")).is_err());
+        let config = Config {
+            webhook_hosts: vec!["hooks.example".into()],
+            ..config
+        };
+        assert!(sinks(&config)[0].request(&alert("Stop")).is_ok());
     }
 
     #[test]

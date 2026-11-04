@@ -174,3 +174,110 @@ fn send_delivers_a_composed_message_and_refuses_a_bad_one() {
         .assert()
         .failure();
 }
+
+fn webhook_setup(url: &str, hosts: Option<&[&str]>) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("hook"), format!("{url}\n")).unwrap();
+    let mut config = serde_json::json!({
+        "host": "testhost",
+        "mention": "",
+        "webhook_url_file": dir.path().join("hook"),
+    });
+    if let Some(hosts) = hosts {
+        config["webhook_hosts"] = serde_json::json!(hosts);
+    }
+    std::fs::write(dir.path().join("noroshi.yaml"), config.to_string()).unwrap();
+    dir
+}
+
+const REFUSED_URL: &str = "https://evil.example/collect-zq7xv";
+
+#[test]
+fn check_refuses_a_webhook_host_outside_the_list_without_echoing_the_secret() {
+    let dir = webhook_setup(REFUSED_URL, None);
+    noroshi(&dir, &["check"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("backend discord: cannot deliver"))
+        .stdout(predicate::str::contains("webhook_hosts"))
+        .stdout(predicate::str::contains("zq7xv").not())
+        .stdout(predicate::str::contains("evil.example").not());
+}
+
+#[test]
+fn hook_refuses_a_webhook_host_outside_the_list_and_still_exits_zero() {
+    let dir = webhook_setup(REFUSED_URL, None);
+    noroshi(&dir, &["hook"])
+        .write_stdin(r#"{"hook_event_name":"Stop"}"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("webhook_hosts"))
+        .stderr(predicate::str::contains("zq7xv").not());
+}
+
+#[test]
+fn send_and_test_refuse_a_webhook_host_outside_the_list() {
+    let dir = webhook_setup(REFUSED_URL, None);
+    noroshi(&dir, &["send"])
+        .write_stdin(r#"{"title":"x","message":"y"}"#)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("webhook_hosts"));
+    noroshi(&dir, &["test"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("webhook_hosts"));
+}
+
+#[test]
+fn a_discord_webhook_is_ready_by_default_and_another_host_only_by_name() {
+    let dir = webhook_setup("https://discord.com/api/webhooks/1/x", None);
+    noroshi(&dir, &["check"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backend discord: ready"));
+    let dir = webhook_setup("https://hooks.example/any/path", Some(&["hooks.example"]));
+    noroshi(&dir, &["check"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backend discord: ready"));
+    let dir = webhook_setup(
+        "https://discord.com/api/webhooks/1/x",
+        Some(&["hooks.example"]),
+    );
+    noroshi(&dir, &["check"]).assert().failure();
+}
+
+#[test]
+fn the_environment_can_allow_another_host() {
+    let dir = webhook_setup("https://hooks.example/any/path", None);
+    noroshi(&dir, &["check"])
+        .env("NOROSHI_WEBHOOK_HOSTS", r#"["hooks.example"]"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("backend discord: ready"));
+}
+
+#[test]
+fn a_repo_layer_cannot_redirect_the_webhook_by_widening_the_list() {
+    let dir = webhook_setup("https://discord.com/api/webhooks/1/x", None);
+    let repo = dir.path().join("repo");
+    std::fs::create_dir(&repo).unwrap();
+    std::fs::write(repo.join("planted"), "https://hooks.example/planted\n").unwrap();
+    std::fs::write(
+        repo.join(".noroshi.yaml"),
+        serde_json::json!({
+            "webhook_url_file": repo.join("planted"),
+            "webhook_hosts": ["hooks.example"],
+        })
+        .to_string(),
+    )
+    .unwrap();
+    noroshi(&dir, &["check"])
+        .current_dir(&repo)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("backend discord: cannot deliver"))
+        .stdout(predicate::str::contains("ignored: webhook_hosts"));
+}

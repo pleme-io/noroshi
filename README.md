@@ -33,6 +33,7 @@ ntfy:
   tags: { Stop: [white_check_mark] }
   titles: { Stop: "Done" }
 webhook_url_file: /path/to/discord-webhook   # optional Discord backend
+webhook_hosts: [discord.com, discordapp.com] # default; replaces, never adds
 mention: "<@123>"                            # optional Discord mention
 ```
 
@@ -43,6 +44,15 @@ the server root, so the topic stays out of the URL.
 An alert carries the host, the event and the first eight characters of the
 session id. Nothing else from the payload (prompts, messages, paths, code) is
 sent anywhere.
+
+The Discord backend posts only to a `webhook_hosts` entry, matched whole as
+`host` or `host:port`. On a Discord host the path must also be `/api/webhooks/`.
+Anything else is refused before a request exists, so a mistyped secret cannot
+post to the host it happens to name, and the refusal names the secret's path,
+never its contents. To allow another host, set the list in `/etc`, the user
+config, `--config` or `NOROSHI_WEBHOOK_HOSTS`. A `.noroshi.yaml` in the working
+tree cannot change it: `noroshi check` reports that entry as ignored and the rest
+of the file still applies.
 
 A bad entry (an unknown policy, a priority outside 1..5) is ignored on its own
 and reported by `noroshi check`; one backend failing never stops another.

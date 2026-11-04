@@ -8,6 +8,7 @@ use crate::alert::Detail;
 pub const APP: &str = "noroshi";
 pub const ENV_PREFIX: &str = "NOROSHI_";
 pub const DEFAULT_NTFY_SERVER: &str = "https://ntfy.sh";
+pub const DISCORD_HOSTS: [&str; 2] = ["discord.com", "discordapp.com"];
 
 /// Merged from, lowest to highest: built-in defaults, `/etc/noroshi/noroshi.yaml`,
 /// `~/.config/noroshi/noroshi.yaml` (rendered by blackmatter-claude), every
@@ -23,9 +24,12 @@ pub struct Config {
     pub host: String,
     pub mention: String,
     pub webhook_url_file: Option<PathBuf>,
+    pub webhook_hosts: Vec<String>,
     pub events: BTreeMap<String, String>,
     pub ntfy: Option<NtfyConfig>,
     pub render: Render,
+    #[serde(skip)]
+    pub ignored: Vec<String>,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -67,12 +71,14 @@ impl Default for Config {
             host: String::new(),
             mention: String::new(),
             webhook_url_file: None,
+            webhook_hosts: DISCORD_HOSTS.map(String::from).to_vec(),
             events: BTreeMap::from([
                 ("Stop".into(), "signal".into()),
                 ("Notification".into(), "signal".into()),
             ]),
             ntfy: None,
             render: Render::default(),
+            ignored: Vec::new(),
         }
     }
 }
@@ -169,6 +175,25 @@ impl Config {
     ///
     /// Returns an error when a layer exists but is not valid YAML of this shape.
     pub fn load_layers(layers: &[PathBuf]) -> anyhow::Result<Self> {
+        let mut config = Self::merged(layers)?;
+        let operator: Vec<PathBuf> = layers
+            .iter()
+            .filter(|l| !is_repo_layer(l))
+            .cloned()
+            .collect();
+        let hosts = Self::merged(&operator)?.webhook_hosts;
+        if config.webhook_hosts != hosts {
+            config.ignored.push(
+                "webhook_hosts: a .noroshi.yaml in the working tree cannot set this; \
+                 use /etc, the user config, --config or the environment"
+                    .to_string(),
+            );
+            config.webhook_hosts = hosts;
+        }
+        Ok(config)
+    }
+
+    fn merged(layers: &[PathBuf]) -> anyhow::Result<Self> {
         Ok(layers
             .iter()
             .fold(
@@ -225,6 +250,13 @@ impl Config {
                 format!("events.{e}: `{p}` is neither signal nor silent; treated as silent")
             })
             .collect();
+        out.extend(self.ignored.iter().cloned());
+        out.extend(
+            self.webhook_hosts
+                .iter()
+                .filter(|h| !is_authority(h))
+                .map(|h| format!("webhook_hosts: `{h}` is not a host[:port]; it matches nothing")),
+        );
         if !matches!(self.render.detail.as_str(), "minimal" | "context") {
             out.push(format!(
                 "render.detail: `{}` is neither minimal nor context; treated as minimal",
@@ -243,6 +275,20 @@ impl Config {
         }
         out
     }
+}
+
+fn is_repo_layer(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+}
+
+fn is_authority(host: &str) -> bool {
+    format!("https://{host}/")
+        .parse::<ureq::http::Uri>()
+        .ok()
+        .and_then(|u| u.authority().map(|a| a.as_str() == host))
+        .unwrap_or(false)
+        && !host.contains('@')
 }
 
 impl NtfyConfig {
@@ -331,6 +377,60 @@ mod tests {
                 .headline("Notification", Some("permission_prompt")),
             "Claude needs your approval"
         );
+    }
+
+    #[test]
+    fn webhook_hosts_default_to_discord_and_an_operator_layer_replaces_them() {
+        assert_eq!(Config::default().webhook_hosts, DISCORD_HOSTS);
+        let dir = tempfile::tempdir().unwrap();
+        let user = write(
+            dir.path(),
+            "user.yaml",
+            "webhook_hosts: [hooks.example, \"hooks.example:8443\"]\n",
+        );
+        let cfg = Config::load_layers(&[user]).unwrap();
+        assert_eq!(cfg.webhook_hosts, ["hooks.example", "hooks.example:8443"]);
+        assert!(cfg.problems().is_empty());
+    }
+
+    #[test]
+    fn a_dotfile_layer_cannot_change_webhook_hosts_and_the_refusal_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = write(dir.path(), "user.yaml", "webhook_hosts: [hooks.example]\n");
+        for name in [".noroshi.yaml", ".noroshi-01-extra.yaml"] {
+            let repo = write(
+                dir.path(),
+                name,
+                "host: from-repo\nwebhook_hosts: [planted.example]\n",
+            );
+            let cfg = Config::load_layers(&[user.clone(), repo]).unwrap();
+            assert_eq!(cfg.host, "from-repo");
+            assert_eq!(cfg.webhook_hosts, ["hooks.example"]);
+            assert_eq!(cfg.problems().len(), 1);
+            assert!(cfg.problems()[0].starts_with("webhook_hosts:"));
+        }
+        let repo = write(dir.path(), ".noroshi.yaml", "host: from-repo\n");
+        assert!(
+            Config::load_layers(&[user, repo])
+                .unwrap()
+                .problems()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_webhook_hosts_entry_that_cannot_match_is_reported_on_its_own() {
+        let cfg = Config {
+            webhook_hosts: vec![
+                "hooks.example".into(),
+                "https://hooks.example".into(),
+                "a@hooks.example".into(),
+                "hooks.example/path".into(),
+                String::new(),
+            ],
+            ..Config::default()
+        };
+        assert_eq!(cfg.problems().len(), 4);
     }
 
     #[test]

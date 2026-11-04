@@ -121,6 +121,7 @@ fn check(explicit: Option<&Path>) -> ExitCode {
         }
     );
     println!("render: {:?}", config.render.detail());
+    println!("webhook hosts: {}", config.webhook_hosts.join(", "));
     for (event, policy) in &config.events {
         println!("event {event}: {policy}");
     }
