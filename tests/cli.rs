@@ -159,7 +159,7 @@ fn check_reports_readiness_without_printing_the_topic() {
 #[test]
 fn send_delivers_a_composed_message_and_refuses_a_bad_one() {
     let (url, rx) = mock_server(1);
-    let dir = setup(&url, r#"{}"#);
+    let dir = setup(&url, "{}");
     noroshi(&dir, &["send"])
         .write_stdin(r#"{"title":"plantao: rio sui failed","message":"origin down","priority":5,"tags":["rotating_light"],"click":"https://rio.example/x"}"#)
         .assert()

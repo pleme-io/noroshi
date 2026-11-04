@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(cfg.host, "ryn");
         assert_eq!(cfg.render.detail(), Detail::Context);
         assert_eq!(cfg.render.said_max, 280);
-        assert!(cfg.problems().is_empty());
+        assert_eq!(cfg.problems(), Vec::<String>::new());
     }
 
     #[test]
@@ -401,7 +401,7 @@ mod tests {
         );
         let cfg = Config::load_layers(&[user]).unwrap();
         assert_eq!(cfg.webhook_hosts, ["hooks.example", "hooks.example:8443"]);
-        assert!(cfg.problems().is_empty());
+        assert_eq!(cfg.problems(), Vec::<String>::new());
     }
 
     #[test]
@@ -421,11 +421,9 @@ mod tests {
             assert!(cfg.problems()[0].starts_with("webhook_hosts:"));
         }
         let repo = write(dir.path(), ".noroshi.yaml", "host: from-repo\n");
-        assert!(
-            Config::load_layers(&[user, repo])
-                .unwrap()
-                .problems()
-                .is_empty()
+        assert_eq!(
+            Config::load_layers(&[user, repo]).unwrap().problems(),
+            Vec::<String>::new()
         );
     }
 
