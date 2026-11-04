@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "ff45e52af3c0be54a3798095772e5e1c8e787149c573d2400242f296b5cff66a",
+  "cargo_lock_sha256": "374913a3ac93792dfd9fab41da0a5e771ee06db89b8d2187a07d604d86ef7b39",
   "manifest_sha256": {
-    "Cargo.toml": "5fbad974907369d9d4c56898ec6801bfae6518df4e50d50b261571006e0b1fa2"
+    "Cargo.toml": "583fbb834231e824075cecd7299cfe16836e0c69c5e1d6b73514ed32cfd6cbda"
   },
   "target_resolves": {
     "base": {
@@ -328,7 +328,7 @@
           "std"
         ]
       },
-      "cc-1.10.0": {
+      "cc-1.11.0": {
         "runtime_dependencies": [
           {
             "name": "find_msvc_tools",
@@ -1139,7 +1139,7 @@
           "std"
         ]
       },
-      "log-0.4.34": {
+      "log-0.4.35": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -1157,7 +1157,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "noroshi-0.1.1": {
+      "noroshi-0.1.2": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -1225,7 +1225,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.1084-a093a0ef85932cff65d58b7bfa96588917c0a26c",
+            "package_key": "shikumi-0.1.1084-63d0f3f3faf537e17d72d7d8fc1c816f1cd435f8",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1245,7 +1245,7 @@
           },
           {
             "name": "ureq",
-            "package_key": "ureq-3.5.0",
+            "package_key": "ureq-3.5.1",
             "kind": "normal",
             "features": [
               "rustls"
@@ -1814,7 +1814,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2397,7 +2397,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.1084-a093a0ef85932cff65d58b7bfa96588917c0a26c": {
+      "shikumi-0.1.1084-63d0f3f3faf537e17d72d7d8fc1c816f1cd435f8": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -3066,7 +3066,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "ureq-3.5.0": {
+      "ureq-3.5.1": {
         "runtime_dependencies": [
           {
             "name": "base64",
@@ -3082,7 +3082,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3128,7 +3128,7 @@
           },
           {
             "name": "ureq_proto",
-            "package_key": "ureq-proto-0.6.5",
+            "package_key": "ureq-proto-0.7.1",
             "kind": "normal",
             "features": [
               "client"
@@ -3169,7 +3169,7 @@
           "rustls-webpki-roots"
         ]
       },
-      "ureq-proto-0.6.5": {
+      "ureq-proto-0.7.1": {
         "runtime_dependencies": [
           {
             "name": "base64",
@@ -3207,7 +3207,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3360,7 +3360,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -3424,7 +3424,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -3609,7 +3609,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -3735,7 +3735,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -3834,7 +3834,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -3875,7 +3875,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -3992,7 +3992,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -4149,7 +4149,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -4248,7 +4248,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -4289,7 +4289,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -4406,7 +4406,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -4573,7 +4573,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -4642,7 +4642,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -4807,7 +4807,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -4943,7 +4943,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -5047,7 +5047,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -5088,7 +5088,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -5185,7 +5185,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -5352,7 +5352,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -5456,7 +5456,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -5497,7 +5497,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -5594,7 +5594,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -5774,7 +5774,7 @@
     "bytes-1.12.1": {
       "edition": "2021"
     },
-    "cc-1.10.0": {
+    "cc-1.11.0": {
       "edition": "2021"
     },
     "cfg-if-1.0.5": {
@@ -5901,7 +5901,7 @@
     "linux-raw-sys-0.12.1": {
       "edition": "2021"
     },
-    "log-0.4.34": {
+    "log-0.4.35": {
       "edition": "2021"
     },
     "memchr-2.8.3": {
@@ -5913,7 +5913,7 @@
     "normalize-line-endings-0.3.0": {
       "edition": "2015"
     },
-    "noroshi-0.1.1": {
+    "noroshi-0.1.2": {
       "edition": "2024",
       "lib_target": {
         "name": "noroshi",
@@ -6072,7 +6072,7 @@
     "serde_yaml-0.9.34+deprecated": {
       "edition": "2021"
     },
-    "shikumi-0.1.1084-a093a0ef85932cff65d58b7bfa96588917c0a26c": {
+    "shikumi-0.1.1084-63d0f3f3faf537e17d72d7d8fc1c816f1cd435f8": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -6162,10 +6162,10 @@
     "untrusted-0.9.0": {
       "edition": "2018"
     },
-    "ureq-3.5.0": {
+    "ureq-3.5.1": {
       "edition": "2024"
     },
-    "ureq-proto-0.6.5": {
+    "ureq-proto-0.7.1": {
       "edition": "2024"
     },
     "utf8-zero-0.8.1": {
@@ -6215,7 +6215,7 @@
     }
   },
   "git_nar_sha256": {
-    "shikumi-0.1.1084-a093a0ef85932cff65d58b7bfa96588917c0a26c": "sha256-b1XJfoiyTQOtoAzGmL1dPP+dEjHtzRmqo73PKYoqp5k="
+    "shikumi-0.1.1084-63d0f3f3faf537e17d72d7d8fc1c816f1cd435f8": "sha256-pmCD4RsFaQpXXsC0deqi5aqMcvjiZ/Q+c7fKi3wPN3o="
   },
   "flake_metadata": {}
 }
