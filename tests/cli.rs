@@ -281,3 +281,101 @@ fn a_repo_layer_cannot_redirect_the_webhook_by_widening_the_list() {
         .stdout(predicate::str::contains("backend discord: cannot deliver"))
         .stdout(predicate::str::contains("ignored: webhook_hosts"));
 }
+
+fn no_backend() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(
+        dir.path().join("noroshi.yaml"),
+        r#"{"host":"testhost","mention":""}"#,
+    )
+    .unwrap();
+    dir
+}
+
+#[test]
+fn hook_explain_says_why_for_every_silence_and_never_touches_stdout_or_the_exit_code() {
+    let (url, rx) = mock_server(1);
+    let dir = setup(
+        &url,
+        r#"{"Stop":"signal","SessionEnd":"silent","Notification":"loud"}"#,
+    );
+    let session = |event: &str| format!(r#"{{"hook_event_name":"{event}","session_id":"s"}}"#);
+    for (stdin, why) in [
+        (session("SessionEnd"), "event SessionEnd is set to silent"),
+        (session("SubagentStop"), "event SubagentStop is not listed"),
+        (session("Notification"), "`loud` is neither"),
+        (r#"{"session_id":"s"}"#.to_string(), "no hook_event_name"),
+        ("not json zq7xv".to_string(), "not JSON"),
+    ] {
+        noroshi(&dir, &["hook", "--explain"])
+            .write_stdin(stdin)
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::contains("noroshi: silent: "))
+            .stderr(predicate::str::contains(why))
+            .stderr(predicate::str::contains("zq7xv").not());
+    }
+    assert!(
+        rx.recv_timeout(std::time::Duration::from_millis(300))
+            .is_err()
+    );
+}
+
+#[test]
+fn hook_explain_names_a_machine_with_no_backend() {
+    noroshi(&no_backend(), &["hook", "--explain"])
+        .write_stdin(r#"{"hook_event_name":"Stop"}"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("noroshi: silent: "))
+        .stderr(predicate::str::contains("no backend is configured"));
+}
+
+#[test]
+fn hook_explain_reports_the_signal_and_each_delivery_but_no_payload_or_secret() {
+    let (url, rx) = mock_server(1);
+    let dir = setup(&url, r#"{"Stop":"signal"}"#);
+    noroshi(&dir, &["hook", "--explain"])
+        .write_stdin(r#"{"hook_event_name":"Stop","last_assistant_message":"secret code"}"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("noroshi: signal: Stop"))
+        .stderr(predicate::str::contains("noroshi: ntfy: sent (HTTP 200)"))
+        .stderr(predicate::str::contains("secret code").not())
+        .stderr(predicate::str::contains("unit-test-topic").not());
+    assert!(rx.recv_timeout(std::time::Duration::from_secs(5)).is_ok());
+}
+
+#[test]
+fn hook_explain_exits_zero_when_delivery_fails() {
+    let dir = setup("http://127.0.0.1:9", r#"{"Stop":"signal"}"#);
+    noroshi(&dir, &["hook", "--explain"])
+        .write_stdin(r#"{"hook_event_name":"Stop"}"#)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("noroshi: ntfy: "));
+}
+
+#[test]
+fn hook_without_explain_stays_quiet_on_stderr_when_silent_or_sent() {
+    let (url, rx) = mock_server(1);
+    let dir = setup(&url, r#"{"Stop":"signal","SessionEnd":"silent"}"#);
+    for stdin in [
+        r#"{"hook_event_name":"SessionEnd"}"#,
+        r#"{"session_id":"s"}"#,
+        "not json",
+        r#"{"hook_event_name":"Stop"}"#,
+    ] {
+        noroshi(&dir, &["hook"])
+            .write_stdin(stdin)
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+    }
+    assert!(rx.recv_timeout(std::time::Duration::from_secs(5)).is_ok());
+}

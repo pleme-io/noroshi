@@ -6,8 +6,9 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 
 use noroshi::alert::{Alert, Context, Detail, session_label};
-use noroshi::config::{Config, Policy};
+use noroshi::config::Config;
 use noroshi::sink::{self, Message, Ureq};
+use noroshi::verdict::{self, Verdict};
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -24,7 +25,13 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Claude Code hook: read the payload on stdin and signal the event if its policy says so. Always exits 0.
-    Hook,
+    Hook {
+        #[arg(
+            long,
+            help = "Say on stderr why the event was silent, or which backends it reached"
+        )]
+        explain: bool,
+    },
     /// Report the merged config layers and whether each backend can deliver, without sending anything.
     Check,
     /// Deliver one message composed by another program, read as JSON on stdin:
@@ -43,8 +50,8 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let explicit = cli.config.as_deref();
     match cli.command {
-        Command::Hook => {
-            hook(explicit);
+        Command::Hook { explain } => {
+            hook(explicit, explain);
             ExitCode::SUCCESS
         }
         Command::Check => check(explicit),
@@ -53,12 +60,19 @@ fn main() -> ExitCode {
     }
 }
 
-fn hook(explicit: Option<&Path>) {
+fn hook(explicit: Option<&Path>, explain: bool) {
+    let silent = |why: &str| {
+        if explain {
+            eprintln!("noroshi: silent: {why}");
+        }
+    };
     let mut raw = String::new();
     if std::io::stdin().read_to_string(&mut raw).is_err() {
+        silent("stdin could not be read");
         return;
     }
     let Ok(payload) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        silent("the payload is not JSON");
         return;
     };
     let cwd = payload
@@ -72,17 +86,22 @@ fn hook(explicit: Option<&Path>) {
             return;
         }
     };
-    let Some(alert) = Alert::from_payload(&payload, &config.host) else {
-        return;
+    let alert = match verdict::decide(&payload, &config) {
+        Verdict::Signal(alert) => alert,
+        Verdict::Silent(why) => {
+            silent(&why);
+            return;
+        }
     };
-    if config.policy(&alert.event) == Policy::Silent {
-        return;
+    if explain {
+        eprintln!("noroshi: signal: {}", alert.event);
     }
-    let alert = alert.with_detail(&payload, &config.render);
     let transport = Ureq::new(TIMEOUT);
     for s in sink::sinks(&config) {
-        if let Err(e) = sink::deliver(s.as_ref(), &alert, &transport) {
-            eprintln!("noroshi: {}: {e}", s.name());
+        match sink::deliver(s.as_ref(), &alert, &transport) {
+            Ok(status) if explain => eprintln!("noroshi: {}: sent (HTTP {status})", s.name()),
+            Ok(_) => {}
+            Err(e) => eprintln!("noroshi: {}: {e}", s.name()),
         }
     }
 }

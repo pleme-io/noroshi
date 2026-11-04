@@ -11,6 +11,7 @@ guardrail is what the agent must not do; noroshi is what the operator must be to
 
 ```bash
 noroshi hook                   # Claude Code hook entrypoint; always exits 0, prints nothing
+noroshi hook --explain         # the same, and say on stderr why it was silent or which backends it reached
 noroshi check                  # report the config and whether each backend can deliver
 noroshi test [--event Stop]    # send one test alert through every backend
 ```
@@ -56,6 +57,11 @@ of the file still applies.
 
 A bad entry (an unknown policy, a priority outside 1..5) is ignored on its own
 and reported by `noroshi check`; one backend failing never stops another.
+
+Silence carries its reason: `noroshi hook --explain` says why an event sent
+nothing (set to silent, not listed, a bad entry, no backend, a bad payload), so a
+quiet event can be told from a broken one. It writes to stderr only and still
+exits 0, and it names the event but no other part of the payload.
 
 ## Wiring
 

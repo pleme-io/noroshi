@@ -239,6 +239,17 @@ impl Config {
         }
     }
 
+    #[must_use]
+    pub fn why_silent(&self, event: &str) -> String {
+        match self.events.get(event).map(String::as_str) {
+            Some("silent") => format!("event {event} is set to silent"),
+            Some(other) => {
+                format!("events.{event}: `{other}` is neither signal nor silent; treated as silent")
+            }
+            None => format!("event {event} is not listed in events; an unlisted event is silent"),
+        }
+    }
+
     /// Every entry that will be ignored, one line each.
     #[must_use]
     pub fn problems(&self) -> Vec<String> {
