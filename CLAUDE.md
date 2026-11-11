@@ -3,12 +3,7 @@
 Signal-fire alerts for AI coding agents: parse a Claude Code hook payload, decide
 by per-event policy, deliver to each configured backend. Rust, `substrate.rust.tool`.
 
-| Module | Responsibility |
-|--------|----------------|
-| `config` | `noroshi.yaml`; per-entry resolution of policies and ntfy priorities (`Priority` is 1..=5) |
-| `alert` | `Alert` from a payload: host, event, 8-char session label, nothing else |
-| `verdict` | `decide`: payload and config to `Signal(Alert)` or `Silent(reason)`, the one decision `noroshi hook` acts on and `--explain` reports |
-| `sink` | `Sink` (Discord, Ntfy) builds an `HttpRequest` from an `Alert` or a composed `Message` (`noroshi send`, JSON on stdin; plantao delivers through it); `Transport` sends it (`Ureq` in production, a recorder in tests) |
+Module map (`config`, `alert`, `verdict`, `sink`): [README.md#modules](./README.md#modules), read it before you move a responsibility between modules.
 
 Rules:
 

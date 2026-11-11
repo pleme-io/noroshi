@@ -63,6 +63,15 @@ nothing (set to silent, not listed, a bad entry, no backend, a bad payload), so 
 quiet event can be told from a broken one. It writes to stderr only and still
 exits 0, and it names the event but no other part of the payload.
 
+## Modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `config` | `noroshi.yaml`; per-entry resolution of policies and ntfy priorities (`Priority` is 1..=5) |
+| `alert` | `Alert` from a payload: host, event, 8-char session label, nothing else |
+| `verdict` | `decide`: payload and config to `Signal(Alert)` or `Silent(reason)`, the one decision `noroshi hook` acts on and `--explain` reports |
+| `sink` | `Sink` (Discord, Ntfy) builds an `HttpRequest` from an `Alert` or a composed `Message` (`noroshi send`, JSON on stdin; plantao delivers through it); `Transport` sends it (`Ureq` in production, a recorder in tests) |
+
 ## Wiring
 
 In the pleme-io fleet, blackmatter-claude's `noroshi` options render the config
